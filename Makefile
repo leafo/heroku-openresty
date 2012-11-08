@@ -1,5 +1,5 @@
 
-test_install:: package
+test_install:: rock
 	luarocks install $$(ls *.src.rock) --tree=dump
 
 rock:: package
