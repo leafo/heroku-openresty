@@ -45,7 +45,8 @@ dependencies = {
 }
 ```
 
-Create a basic `nginx.conf`, this is the one from the OpenResty guide (with the addition of `daemon off`:
+Create a basic `nginx.conf`, this is the one from the OpenResty guide (with the
+addition of `daemon off` and `${PORT}`):
 
 ```
 worker_processes  1;
@@ -55,7 +56,7 @@ events {
 }
 http {
     server {
-        listen 8080;
+        listen ${PORT};
         location / {
             default_type text/html;
             content_by_lua '
