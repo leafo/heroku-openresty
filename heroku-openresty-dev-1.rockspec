@@ -22,7 +22,7 @@ build = {
 			"nginx/sbin/nginx",
 
 			"bin/compile_nginx_config.lua",
-			"bin/start_resty.sh"
+			"bin/start_nginx.sh"
 		},
 		lib = {
 			["rds.parser"] = "lualib/rds/parser.so",

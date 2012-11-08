@@ -1,6 +1,6 @@
 
-test:
-	luarocks make --tree=dump
+test_install:: package
+	luarocks install $$(ls *.src.rock) --tree=dump
 
 rock:: package
 	-rm *.rock
