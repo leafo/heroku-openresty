@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-	summary = "openresty binaries for running on heroku",
+	summary = "OpenResty binaries for running on Heroku with the Lua buildpack",
 	license = "MIT"
 }
 
@@ -19,7 +19,10 @@ build = {
 	type = "builtin",
 	install = {
 		bin = {
-			"nginx/sbin/nginx"
+			"nginx/sbin/nginx",
+
+			"bin/compile_nginx_config.lua",
+			"bin/start_resty.sh"
 		},
 		lib = {
 			["rds.parser"] = "lualib/rds/parser.so",
