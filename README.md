@@ -16,7 +16,7 @@ In addition to a pre compiled openresty, some scripts to start nginx are
 included. nginx doesn't support passing in port through argument or reading
 from environment variable so we preprocess the config file.
 
-Anything matching `${NAME}` is replaced with the environment variable `NAME`
+Anything matching `${{NAME}}` is replaced with the environment variable `NAME`
 inside of your nginx configuration config. (note: doesn't apply to included
 files)
 
@@ -46,17 +46,18 @@ dependencies = {
 ```
 
 Create a basic `nginx.conf`, this is the one from the OpenResty guide (with the
-addition of `daemon off` and `${PORT}`):
+addition of `daemon off` and `${{PORT}}`):
 
 ```
 worker_processes  1;
 error_log logs/error.log;
+daemon off;
 events {
     worker_connections 1024;
 }
 http {
     server {
-        listen ${PORT};
+        listen ${{PORT}};
         location / {
             default_type text/html;
             content_by_lua '
