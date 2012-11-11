@@ -1,0 +1,1 @@
+vulcan build -v -s ngx_openresty-1.2.4.5 -p /tmp/openresty -c './configure --with-pcre=$(pwd)/pcre-8.31 && make && make DESTDIR=/tmp/openresty install'
