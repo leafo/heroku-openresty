@@ -3,7 +3,7 @@ package = "heroku-openresty"
 version = "dev-1"
 
 source = {
-	url = "http://leafo.net/dump/heroku-openresty-dev-1.tar.gz"
+	url = "git://github.com/leafo/heroku-openresty.git"
 }
 
 description = {
