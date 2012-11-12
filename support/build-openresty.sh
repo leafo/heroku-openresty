@@ -1,1 +1,1 @@
-vulcan build -v -s ngx_openresty-1.2.4.5 -p /tmp/openresty -c './configure --with-pcre=$(pwd)/pcre-8.31 && make && make DESTDIR=/tmp/openresty install'
+vulcan build -v -s ngx_openresty-1.2.4.7 -p /tmp/openresty -c 'PATH=/sbin:$PATH ./configure --with-pcre=$(pwd)/pcre-8.31 --with-luajit && make && make DESTDIR=/tmp/openresty install'

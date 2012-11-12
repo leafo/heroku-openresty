@@ -1,9 +1,4 @@
--- Copyright (C) 2012 Zhang "agentzh" Yichun (章亦春)
-
-module("resty.memcached", package.seeall)
-
-
-_VERSION = '0.09'
+-- Copyright (C) 2012 Yichun Zhang (agentzh)
 
 
 local sub = string.sub
@@ -14,11 +9,16 @@ local tcp = ngx.socket.tcp
 local strlen = string.len
 local insert = table.insert
 local concat = table.concat
+local setmetatable = setmetatable
+local type = type
+local error = error
 
 
-local class = resty.memcached
+module(...)
 
-local mt = { __index = class }
+_VERSION = '0.10'
+
+local mt = { __index = _M }
 
 
 function new(self, opts)
@@ -70,58 +70,7 @@ function connect(self, ...)
 end
 
 
-function get(self, key)
-    if type(key) == "table" then
-        return _multi_get(self, key)
-    end
-
-    local sock = self.sock
-    if not sock then
-        return nil, nil, "not initialized"
-    end
-
-    local cmd = {"get ", self.escape_key(key), "\r\n"}
-    local bytes, err = sock:send(concat(cmd))
-    if not bytes then
-        return nil, nil, "failed to send command: " .. (err or "")
-    end
-
-    local line, err = sock:receive()
-    if not line then
-        return nil, nil, "failed to receive 1st line: " .. (err or "")
-    end
-
-    if line == 'END' then
-        return nil, nil, nil
-    end
-
-    local flags, len = match(line, '^VALUE %S+ (%d+) (%d+)$')
-    if not flags then
-        return nil, nil, "bad line: " .. line
-    end
-
-    -- print("len: ", len, ", flags: ", flags)
-
-    local data, err = sock:receive(len)
-    if not data then
-        return nil, nil, "failed to receive data chunk: " .. (err or "")
-    end
-
-    line, err = sock:receive(2) -- discard the trailing CRLF
-    if not line then
-        return nil, nil, "failed to receive CRLF: " .. (err or "")
-    end
-
-    line, err = sock:receive() -- discard "END\r\n"
-    if not line then
-        return nil, nil, "failed to receive END CRLF: " .. (err or "")
-    end
-
-    return data, flags
-end
-
-
-function _multi_get(self, keys)
+local function _multi_get(self, keys)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -185,58 +134,58 @@ function _multi_get(self, keys)
 end
 
 
-function gets(self, key)
+function get(self, key)
     if type(key) == "table" then
-        return _multi_gets(self, key)
+        return _multi_get(self, key)
     end
 
     local sock = self.sock
     if not sock then
-        return nil, nil, nil, "not initialized"
+        return nil, nil, "not initialized"
     end
 
-    local cmd = {"gets ", self.escape_key(key), "\r\n"}
+    local cmd = {"get ", self.escape_key(key), "\r\n"}
     local bytes, err = sock:send(concat(cmd))
     if not bytes then
-        return nil, nil, err
+        return nil, nil, "failed to send command: " .. (err or "")
     end
 
     local line, err = sock:receive()
     if not line then
-        return nil, nil, nil, err
+        return nil, nil, "failed to receive 1st line: " .. (err or "")
     end
 
     if line == 'END' then
-        return nil, nil, nil, nil
+        return nil, nil, nil
     end
 
-    local flags, len, cas_uniq = match(line, '^VALUE %S+ (%d+) (%d+) (%d+)$')
+    local flags, len = match(line, '^VALUE %S+ (%d+) (%d+)$')
     if not flags then
-        return nil, nil, nil, line
+        return nil, nil, "bad line: " .. line
     end
 
     -- print("len: ", len, ", flags: ", flags)
 
     local data, err = sock:receive(len)
     if not data then
-        return nil, nil, nil, err
+        return nil, nil, "failed to receive data chunk: " .. (err or "")
     end
 
     line, err = sock:receive(2) -- discard the trailing CRLF
     if not line then
-        return nil, nil, nil, err
+        return nil, nil, "failed to receive CRLF: " .. (err or "")
     end
 
     line, err = sock:receive() -- discard "END\r\n"
     if not line then
-        return nil, nil, nil, err
+        return nil, nil, "failed to receive END CRLF: " .. (err or "")
     end
 
-    return data, flags, cas_uniq
+    return data, flags
 end
 
 
-function _multi_gets(self, keys)
+local function _multi_gets(self, keys)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -302,28 +251,54 @@ function _multi_gets(self, keys)
 end
 
 
-function set(self, ...)
-    return _store(self, "set", ...)
-end
+function gets(self, key)
+    if type(key) == "table" then
+        return _multi_gets(self, key)
+    end
 
+    local sock = self.sock
+    if not sock then
+        return nil, nil, nil, "not initialized"
+    end
 
-function add(self, ...)
-    return _store(self, "add", ...)
-end
+    local cmd = {"gets ", self.escape_key(key), "\r\n"}
+    local bytes, err = sock:send(concat(cmd))
+    if not bytes then
+        return nil, nil, err
+    end
 
+    local line, err = sock:receive()
+    if not line then
+        return nil, nil, nil, err
+    end
 
-function replace(self, ...)
-    return _store(self, "replace", ...)
-end
+    if line == 'END' then
+        return nil, nil, nil, nil
+    end
 
+    local flags, len, cas_uniq = match(line, '^VALUE %S+ (%d+) (%d+) (%d+)$')
+    if not flags then
+        return nil, nil, nil, line
+    end
 
-function append(self, ...)
-    return _store(self, "append", ...)
-end
+    -- print("len: ", len, ", flags: ", flags)
 
+    local data, err = sock:receive(len)
+    if not data then
+        return nil, nil, nil, err
+    end
 
-function prepend(self, ...)
-    return _store(self, "prepend", ...)
+    line, err = sock:receive(2) -- discard the trailing CRLF
+    if not line then
+        return nil, nil, nil, err
+    end
+
+    line, err = sock:receive() -- discard "END\r\n"
+    if not line then
+        return nil, nil, nil, err
+    end
+
+    return data, flags, cas_uniq
 end
 
 
@@ -342,7 +317,7 @@ local function _expand_table(value)
 end
 
 
-function _store(self, cmd, key, value, exptime, flags)
+local function _store(self, cmd, key, value, exptime, flags)
     if not exptime then
         exptime = 0
     end
@@ -378,6 +353,31 @@ function _store(self, cmd, key, value, exptime, flags)
     end
 
     return nil, data
+end
+
+
+function set(self, ...)
+    return _store(self, "set", ...)
+end
+
+
+function add(self, ...)
+    return _store(self, "add", ...)
+end
+
+
+function replace(self, ...)
+    return _store(self, "replace", ...)
+end
+
+
+function append(self, ...)
+    return _store(self, "append", ...)
+end
+
+
+function prepend(self, ...)
+    return _store(self, "prepend", ...)
 end
 
 
@@ -500,7 +500,7 @@ function flush_all(self, time)
 end
 
 
-function _incr_decr(self, cmd, key, value)
+local function _incr_decr(self, cmd, key, value)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -651,8 +651,12 @@ function close(self)
 end
 
 
--- to prevent use of casual module global variables
-getmetatable(class).__newindex = function (table, key, val)
-    error('attempt to write to undeclared variable "' .. key .. '"')
-end
+local class_mt = {
+    -- to prevent use of casual module global variables
+    __newindex = function (table, key, val)
+        error('attempt to write to undeclared variable "' .. key .. '"')
+    end
+}
+
+setmetatable(_M, class_mt)
 

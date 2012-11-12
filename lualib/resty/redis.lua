@@ -1,8 +1,22 @@
--- Copyright (C) 2012 Zhang "agentzh" Yichun (章亦春)
+-- Copyright (C) 2012 Yichun Zhang (agentzh)
 
-module("resty.redis", package.seeall)
 
-_VERSION = '0.14'
+local sub = string.sub
+local tcp = ngx.socket.tcp
+local insert = table.insert
+local concat = table.concat
+local len = string.len
+local null = ngx.null
+local pairs = pairs
+local unpack = unpack
+local setmetatable = setmetatable
+local tonumber = tonumber
+local error = error
+
+
+module(...)
+
+_VERSION = '0.15'
 
 local commands = {
     "append",            "auth",              "bgrewriteaof",
@@ -50,15 +64,7 @@ local commands = {
 }
 
 
-local class = resty.redis
-local mt = { __index = class }
-
-local sub = string.sub
-local tcp = ngx.socket.tcp
-local insert = table.insert
-local concat = table.concat
-local len = string.len
-local null = ngx.null
+local mt = { __index = _M }
 
 
 function new(self)
@@ -195,9 +201,12 @@ end
 local function _gen_req(args)
     local req = {"*", #args, "\r\n"}
 
-    for i, arg in ipairs(args) do
+    for i = 1, #args do
+        local arg = args[i]
+
         if not arg then
             insert(req, "$-1\r\n")
+
         else
             insert(req, "$")
             insert(req, len(arg))
@@ -249,8 +258,10 @@ function read_reply(self)
 end
 
 
-for i, cmd in ipairs(commands) do
-    class[cmd] =
+for i = 1, #commands do
+    local cmd = commands[i]
+
+    _M[cmd] =
         function (self, ...)
             return _do_cmd(self, cmd, ...)
         end
@@ -262,7 +273,7 @@ function hmset(self, hashname, ...)
     if #args == 1 then
         local t = args[1]
         local array = {}
-        for k,v in pairs(t) do
+        for k, v in pairs(t) do
             insert(array, k)
             insert(array, v)
         end
@@ -331,24 +342,28 @@ function array_to_hash(self, t)
 end
 
 
+local class_mt = {
+    -- to prevent use of casual module global variables
+    __newindex = function (table, key, val)
+        error('attempt to write to undeclared variable "' .. key .. '"')
+    end
+}
+
+
 function add_commands(...)
     local cmds = {...}
-    local mt = getmetatable(class)
-    local newindex = mt.__newindex
-    mt.__newindex = nil
+    local newindex = class_mt.__newindex
+    class_mt.__newindex = nil
     for i = 1, #cmds do
         local cmd = cmds[i]
-        class[cmd] =
+        _M[cmd] =
             function (self, ...)
                 return _do_cmd(self, cmd, ...)
             end
     end
-    mt.__newindex = newindex
+    class_mt.__newindex = newindex
 end
 
 
--- to prevent use of casual module global variables
-getmetatable(class).__newindex = function (table, key, val)
-    error('attempt to write to undeclared variable "' .. key .. '"')
-end
+setmetatable(_M, class_mt)
 
