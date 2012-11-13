@@ -16,7 +16,8 @@ dependencies = {
 }
 
 build = {
-	type = "builtin",
+	type = "command",
+	install_command = "cp luajit/lib/libluajit-5.1.so.2.0.0 $(ROCKS_TREE)/../../",
 	install = {
 		bin = {
 			"nginx/sbin/nginx",
@@ -45,6 +46,5 @@ build = {
 			["resty.sha1"] = "lualib/resty/sha1.lua",
 			["resty.upload"] = "lualib/resty/upload.lua"
 		},
-	},
-	modules = {}
+	}
 }
