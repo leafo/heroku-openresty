@@ -17,7 +17,15 @@ dependencies = {
 
 build = {
 	type = "command",
-	install_command = "cp luajit/lib/libluajit-5.1.so.2.0.0 $(ROCKS_TREE)/../../",
+	install_command = [[
+		LIB_DIR=`cd $(PREFIX)/../../../../; pwd`
+		cp luajit/lib/libluajit-5.1.so.2.0.0 "$LIB_DIR"
+		(
+			cd "$LIB_DIR"
+			ln -s libluajit-5.1.so.2.0.0 libluajit-5.1.so.2
+			ln -s libluajit-5.1.so.2.0.0 libluajit-5.1.so
+		)
+	]],
 	install = {
 		bin = {
 			"nginx/sbin/nginx",

@@ -1,11 +1,4 @@
 
-test_install:: rock
-	luarocks install $$(ls *.src.rock) --tree=dump
-
-rock:: package
-	-rm *.rock
-	BASE=$$(basename $$(ls *.rockspec) .rockspec); zip $$BASE.src.rock $$(ls *.rockspec) $$(ls *.tar.gz)
-
-package::
-	BASE=$$(basename $$(ls *.rockspec) .rockspec); git archive --prefix $$BASE/ -o $$BASE.tar.gz master
-
+test_install::
+	-rm -rf dump
+	luarocks make $$(ls *.rockspec) --tree=dump
