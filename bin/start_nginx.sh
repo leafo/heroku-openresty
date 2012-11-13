@@ -14,6 +14,6 @@ OUT_CONF="$CONF.compiled"
 	mkdir -p logs
 	touch logs/error.log
 	touch logs/access.log
-	nginx -p "$(pwd)" -c "$OUT_CONF"
+	LD_LIBRARY_PATH="/app/packages/lib" nginx -p "$(pwd)" -c "$OUT_CONF"
 )
 
