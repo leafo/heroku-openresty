@@ -37,7 +37,8 @@ build = {
 			["rds.parser"] = "lualib/rds/parser.so",
 			["redis.parser"] = "lualib/redis/parser.so",
 			["cjson"] = "lualib/cjson.so",
-
+		},
+		lua = {
 			["resty.aes"] = "lualib/resty/aes.lua",
 			["resty.sha512"] = "lualib/resty/sha512.lua",
 			["resty.sha224"] = "lualib/resty/sha224.lua",
