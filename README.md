@@ -79,4 +79,4 @@ start automatically.
 
 ## Version
 
-* OpenResty 1.2.4.7 Development Release `--with-luajit`
+* OpenResty 1.2.4.7 Development Release `--with-luajit` `--with-http_postgres_module`
