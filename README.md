@@ -77,6 +77,41 @@ web: start_nginx.sh
 Commit everything and push to deploy. Run `heroku scale web=1` if nginx doesn't
 start automatically.
 
+## Using PostgreSQL
+
+This build includes the [Postgres nginx
+module](http://labs.frickle.com/nginx_ngx_postgres/), all you need to
+do is pass in your database configuration.
+
+First add a database if you haven't added one already:
+
+```bash
+heroku addons:add heroku-postgresql:dev
+```
+
+This will set an environment variable inside of your application that looks
+something like this:
+
+```bash
+HEROKU_POSTGRESQL_ROSE_URL="postgres://user:password@database.domain.com/databasename"
+```
+
+The nginx config expects a slightly different format, but no worries the config
+preprocessor has a filter to convert to the correct format.
+
+Add the database to your config like so: (notice the prefix `pg`)
+
+```
+http {
+    upstream database {
+      postgres_server ${{pg HEROKU_POSTGRESQL_ROSE_URL}};
+    }
+}
+```
+
+That's it, your application can now talk to Postgres through the `database`
+upstream.
+
 ## Version
 
 * OpenResty 1.2.4.7 Development Release `--with-luajit` `--with-http_postgres_module`
