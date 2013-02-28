@@ -19,16 +19,12 @@ build = {
 	type = "command",
 	install_command = [[
 		LIB_DIR=`cd $(PREFIX)/../../../../; pwd`
-		LIB="libluajit-5.1.so.2.0.0"
-
-		if ! [ -a "$LIB_DIR/$LIB" ]; then
-			cp "luajit/lib/$LIB" "$LIB_DIR"
-			(
-				cd "$LIB_DIR"
-				ln -s "$LIB" libluajit-5.1.so.2
-				ln -s "$LIB" libluajit-5.1.so
-			)
-		fi
+		cp luajit/lib/libluajit-5.1.so.2.0.0 "$LIB_DIR"
+		(
+			cd "$LIB_DIR"
+			ln -s libluajit-5.1.so.2.0.0 libluajit-5.1.so.2
+			ln -s libluajit-5.1.so.2.0.0 libluajit-5.1.so
+		)
 	]],
 	install = {
 		bin = {
