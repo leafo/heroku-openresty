@@ -25,6 +25,8 @@ work.
 
 ## How to use
 
+### Installing the rock
+
 Create a new app with the [Lua buildpack](https://github.com/leafo/heroku-buildpack-lua).
 
 ```bash
@@ -35,9 +37,14 @@ Add to your rockspec dependencies:
 
 ```lua
 dependencies = {
-  "https://raw.github.com/leafo/heroku-openresty/master/heroku-openresty-dev-1.rockspec"
+  "https://raw.github.com/leafo/heroku-openresty/master/heroku-openresty-1.2.8.6-1.rockspec"
 }
 ```
+
+### Running Nginx
+
+*These directions are for manually running Nginx, if you prefer to use a
+framework then I recommend checking out: <http://leafo.net/lapis>.*
 
 Create a basic `nginx.conf`, this is the one from the OpenResty guide (with the
 addition of `daemon off` and `${{PORT}}`):
