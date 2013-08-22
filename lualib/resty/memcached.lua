@@ -16,7 +16,7 @@ local error = error
 
 module(...)
 
-_VERSION = '0.10'
+_VERSION = '0.11'
 
 local mt = { __index = _M }
 
@@ -638,6 +638,31 @@ function verbosity(self, level)
     end
 
     return 1
+end
+
+
+function touch(self, key, exptime)
+    local sock = self.sock
+    if not sock then
+        return nil, "not initialized"
+    end
+
+    local bytes, err = sock:send(concat{"touch ", self.escape_key(key), " ",
+                                        exptime, "\r\n"})
+    if not bytes then
+        return nil, err
+    end
+
+    local line, err = sock:receive()
+    if not line then
+        return nil, err
+    end
+
+    -- moxi server from couchbase returned stored after touching
+    if line == "TOUCHED" or line =="STORED" then
+        return 1
+    end
+    return nil, line
 end
 
 

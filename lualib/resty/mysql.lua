@@ -27,7 +27,7 @@ local tonumber = tonumber
 
 module(...)
 
-_VERSION = '0.11'
+_VERSION = '0.13'
 
 
 -- constants
@@ -38,6 +38,9 @@ local STATE_COMMAND_SENT = 2
 local COM_QUERY = 0x03
 
 local SERVER_MORE_RESULTS_EXISTS = 8
+
+-- 16MB - 1, the default max allowed packet size used by libmysqlclient
+local FULL_PACKET_SIZE = 16777215
 
 
 local mt = { __index = _M }
@@ -53,6 +56,7 @@ end
 -- converters[0x08] = tonumber  -- long long
 converters[0x09] = tonumber  -- int24
 converters[0x0d] = tonumber  -- year
+converters[0xf6] = tonumber  -- newdecimal
 
 
 local function _get_byte2(data, i)
@@ -75,8 +79,14 @@ end
 
 local function _get_byte8(data, i)
     local a, b, c, d, e, f, g, h = strbyte(data, i, i + 7)
-    return bor(a, lshift(b, 8), lshift(c, 16), lshift(d, 24), lshift(e, 32),
-               lshift(f, 40), lshift(g, 48), lshift(h, 56)), i + 8
+
+    -- XXX workaround for the lack of 64-bit support in bitop:
+    local lo = bor(a, lshift(b, 8), lshift(c, 16), lshift(d, 24))
+    local hi = bor(e, lshift(f, 8), lshift(g, 16), lshift(h, 24))
+    return lo + hi * 4294967296, i + 8
+
+    -- return bor(a, lshift(b, 8), lshift(c, 16), lshift(d, 24), lshift(e, 32),
+               -- lshift(f, 40), lshift(g, 48), lshift(h, 56)), i + 8
 end
 
 
@@ -172,7 +182,7 @@ function _send_packet(self, req, size)
 end
 
 
-function _recv_packet(self)
+local function _recv_packet(self)
     local sock = self.sock
 
     local data, err = sock:receive(4) -- packet header

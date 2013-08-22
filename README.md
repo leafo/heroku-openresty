@@ -4,12 +4,6 @@ This is a Lua rock containing binaries for running OpenResty on Heroku. It's
 designed to be used in conjunction with the [Lua
 buildpack](https://github.com/leafo/heroku-buildpack-lua).
 
-This is an alternative to the [OpenResty
-buildpack](https://github.com/jtarchie/heroku-buildpack-openresty). The
-advantage of this is that you get Lua and LuaRocks with the Lua buildpack.
-Ideally there is Lua buildpack with LuaRocks and the http servers can be
-distributed as rocks.
-
 ## What it does
 
 In addition to a pre compiled openresty, some scripts to start nginx are
@@ -114,4 +108,4 @@ upstream.
 
 ## Version
 
-* OpenResty 1.2.4.7 Development Release `--with-luajit` `--with-http_postgres_module`
+* OpenResty 1.2.8.6 Stable `--with-luajit` `--with-http_postgres_module`
