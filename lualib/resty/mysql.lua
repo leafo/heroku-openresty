@@ -4,8 +4,6 @@
 local bit = require "bit"
 local sub = string.sub
 local tcp = ngx.socket.tcp
-local insert = table.insert
-local strlen = string.len
 local strbyte = string.byte
 local strchar = string.char
 local strfind = string.find
@@ -25,9 +23,13 @@ local error = error
 local tonumber = tonumber
 
 
-module(...)
+local ok, new_tab = pcall(require, "table.new")
+if not ok then
+    new_tab = function (narr, nrec) return {} end
+end
 
-_VERSION = '0.13'
+
+local _M = { _VERSION = '0.13' }
 
 
 -- constants
@@ -47,7 +49,7 @@ local mt = { __index = _M }
 
 
 -- mysql field value type converters
-local converters = {}
+local converters = new_tab(0, 8)
 
 for i = 0x01, 0x05 do
     -- tiny, short, long, float, double
@@ -96,14 +98,17 @@ end
 
 
 local function _set_byte3(n)
-    return strchar(band(n, 0xff), band(rshift(n, 8), 0xff),
-        band(rshift(n, 16), 0xff))
+    return strchar(band(n, 0xff),
+                   band(rshift(n, 8), 0xff),
+                   band(rshift(n, 16), 0xff))
 end
 
 
 local function _set_byte4(n)
-    return strchar(band(n, 0xff), band(rshift(n, 8), 0xff),
-        band(rshift(n, 16), 0xff), band(rshift(n, 24), 0xff))
+    return strchar(band(n, 0xff),
+                   band(rshift(n, 8), 0xff),
+                   band(rshift(n, 16), 0xff),
+                   band(rshift(n, 24), 0xff))
 end
 
 
@@ -118,28 +123,30 @@ end
 
 
 local function _to_cstring(data)
-    return {data, "\0"}
+    return data .. "\0"
 end
 
 
 local function _to_binary_coded_string(data)
-    return {strchar(strlen(data)), data}
+    return strchar(#data) .. data
 end
 
 
 local function _dump(data)
-    local bytes = {}
-    for i = 1, #data do
-        insert(bytes, strbyte(data, i, i))
+    local len = #data
+    local bytes = new_tab(len, 0)
+    for i = 1, len do
+        bytes[i] = strbyte(data, i)
     end
     return concat(bytes, " ")
 end
 
 
 local function _dumphex(data)
-    local bytes = {}
-    for i = 1, #data do
-        insert(bytes, tohex(strbyte(data, i), 2))
+    local len = #data
+    local bytes = new_tab(len, 0)
+    for i = 1, len do
+        bytes[i] = tohex(strbyte(data, i), 2)
     end
     return concat(bytes, " ")
 end
@@ -153,28 +160,24 @@ local function _compute_token(password, scramble)
     local stage1 = sha1(password)
     local stage2 = sha1(stage1)
     local stage3 = sha1(scramble .. stage2)
-    local bytes = {}
-    for i = 1, #stage1 do
-         insert(bytes,
-             bxor(strbyte(stage3, i), strbyte(stage1, i)))
+    local n = #stage1
+    local bytes = new_tab(n, 0)
+    for i = 1, n do
+         bytes[i] = strchar(bxor(strbyte(stage3, i), strbyte(stage1, i)))
     end
 
-    return strchar(unpack(bytes))
+    return concat(bytes)
 end
 
 
-function _send_packet(self, req, size)
+local function _send_packet(self, req, size)
     local sock = self.sock
 
     self.packet_no = self.packet_no + 1
 
     --print("packet no: ", self.packet_no)
 
-    local packet = {
-        _set_byte3(size),
-        strchar(self.packet_no),
-        req
-    }
+    local packet = _set_byte3(size) .. strchar(self.packet_no) .. req
 
     --print("sending packet...")
 
@@ -286,7 +289,7 @@ end
 
 
 local function _parse_ok_packet(packet)
-    local res = {}
+    local res = new_tab(0, 5)
     local pos
 
     res.affected_rows, pos = _from_length_coded_bin(packet, 2)
@@ -353,7 +356,7 @@ end
 
 
 local function _parse_field_packet(data)
-    local col = {}
+    local col = new_tab(0, 2)
     local catalog, db, table, orig_table, orig_name, charsetnr, length
     local pos
     catalog, pos = _from_length_coded_str(data, 1)
@@ -394,9 +397,15 @@ end
 
 
 local function _parse_row_data_packet(data, cols, compact)
-    local row = {}
     local pos = 1
-    for i = 1, #cols do
+    local ncols = #cols
+    local row
+    if compact then
+        row = new_tab(ncols, 0)
+    else
+        row = new_tab(0, ncols)
+    end
+    for i = 1, ncols do
         local value
         value, pos = _from_length_coded_str(data, pos)
         local col = cols[i]
@@ -410,11 +419,11 @@ local function _parse_row_data_packet(data, cols, compact)
             if conv then
                 value = conv(value)
             end
-            -- insert(row, value)
         end
 
         if compact then
-            insert(row, value)
+            row[i] = value
+
         else
             row[name] = value
         end
@@ -445,7 +454,7 @@ local function _recv_field_packet(self)
 end
 
 
-function new(self)
+function _M.new(self)
     local sock, err = tcp()
     if not sock then
         return nil, err
@@ -454,7 +463,7 @@ function new(self)
 end
 
 
-function set_timeout(self, timeout)
+function _M.set_timeout(self, timeout)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -464,7 +473,7 @@ function set_timeout(self, timeout)
 end
 
 
-function connect(self, opts)
+function _M.connect(self, opts)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -489,7 +498,7 @@ function connect(self, opts)
     if host then
         local port = opts.port or 3306
         if not pool then
-            pool = concat({user, database, host, port}, ":")
+            pool = user .. ":" .. database .. ":" .. host .. ":" .. port
         end
 
         ok, err = sock:connect(host, port, { pool = pool })
@@ -501,7 +510,7 @@ function connect(self, opts)
         end
 
         if not pool then
-            pool = concat({user, database, path}, ":")
+            pool = user .. ":" .. database .. ":" .. path
         end
 
         ok, err = sock:connect("unix:" .. path, { pool = pool })
@@ -598,18 +607,16 @@ function connect(self, opts)
 
     --print("token: ", _dump(token))
 
-    local req = {
-        _set_byte4(client_flags),
-        _set_byte4(self._max_packet_size),
-        "\0", -- TODO: add support for charset encoding
-        strrep("\0", 23),
-        _to_cstring(user),
-        _to_binary_coded_string(token),
-        _to_cstring(database)
-    }
+    local req = _set_byte4(client_flags)
+                .. _set_byte4(self._max_packet_size)
+                .. "\0" -- TODO: add support for charset encoding
+                .. strrep("\0", 23)
+                .. _to_cstring(user)
+                .. _to_binary_coded_string(token)
+                .. _to_cstring(database)
 
-    local packet_len = 4 + 4 + 1 + 23 + strlen(user) + 1
-        + strlen(token) + 1 + strlen(database) + 1
+    local packet_len = 4 + 4 + 1 + 23 + #user + 1
+        + #token + 1 + #database + 1
 
     -- print("packet content length: ", packet_len)
     -- print("packet content: ", _dump(concat(req, "")))
@@ -645,7 +652,7 @@ function connect(self, opts)
 end
 
 
-function set_keepalive(self, ...)
+function _M.set_keepalive(self, ...)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -661,7 +668,7 @@ function set_keepalive(self, ...)
 end
 
 
-function get_reused_times(self)
+function _M.get_reused_times(self)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -671,7 +678,7 @@ function get_reused_times(self)
 end
 
 
-function close(self)
+function _M.close(self)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -683,7 +690,7 @@ function close(self)
 end
 
 
-function server_ver(self)
+function _M.server_ver(self)
     return self._server_ver
 end
 
@@ -701,8 +708,8 @@ local function send_query(self, query)
 
     self.packet_no = -1
 
-    local cmd_packet = {strchar(COM_QUERY), query}
-    local packet_len = 1 + strlen(query)
+    local cmd_packet = strchar(COM_QUERY) .. query
+    local packet_len = 1 + #query
 
     local bytes, err = _send_packet(self, cmd_packet, packet_len)
     if not bytes then
@@ -715,9 +722,10 @@ local function send_query(self, query)
 
     return bytes
 end
+_M.send_query = send_query
 
 
-local function read_result(self)
+local function read_result(self, est_nrows)
     if self.state ~= STATE_COMMAND_SENT then
         return nil, "cannot read result in the current context: " .. self.state
     end
@@ -763,14 +771,14 @@ local function read_result(self)
 
     --print("field count: ", field_count)
 
-    local cols = {}
+    local cols = new_tab(field_count, 0)
     for i = 1, field_count do
         local col, err, errno, sqlstate = _recv_field_packet(self)
         if not col then
             return nil, err, errno, sqlstate
         end
 
-        insert(cols, col)
+        cols[i] = col
     end
 
     local packet, typ, err = _recv_packet(self)
@@ -787,7 +795,8 @@ local function read_result(self)
 
     local compact = self.compact
 
-    local rows = {}
+    local rows = new_tab(est_nrows or 4, 0)
+    local i = 0
     while true do
         --print("reading a row")
 
@@ -815,40 +824,30 @@ local function read_result(self)
         -- typ == 'DATA'
 
         local row = _parse_row_data_packet(packet, cols, compact)
-        insert(rows, row)
+        i = i + 1
+        rows[i] = row
     end
 
     self.state = STATE_CONNECTED
 
     return rows
 end
+_M.read_result = read_result
 
 
-function query(self, query)
+function _M.query(self, query, est_nrows)
     local bytes, err = send_query(self, query)
     if not bytes then
         return nil, "failed to send query: " .. err
     end
 
-    return read_result(self)
+    return read_result(self, est_nrows)
 end
 
 
-function set_compact_arrays(self, value)
+function _M.set_compact_arrays(self, value)
     self.compact = value
 end
 
 
-_M.send_query = send_query
-_M.read_result = read_result
-
-
-local class_mt = {
-    -- to prevent use of casual module global variables
-    __newindex = function (table, key, val)
-        error('attempt to write to undeclared variable "' .. key .. '"')
-    end
-}
-
-setmetatable(_M, class_mt)
-
+return _M

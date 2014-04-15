@@ -1,4 +1,4 @@
--- Copyright (C) 2012 Yichun Zhang (agentzh)
+-- Copyright (C) 2012-2013 Yichun Zhang (agentzh), CloudFlare Inc.
 
 
 local sub = string.sub
@@ -7,21 +7,21 @@ local unescape_uri = ngx.unescape_uri
 local match = string.match
 local tcp = ngx.socket.tcp
 local strlen = string.len
-local insert = table.insert
 local concat = table.concat
 local setmetatable = setmetatable
 local type = type
 local error = error
 
 
-module(...)
+local _M = {
+    _VERSION = '0.13'
+}
 
-_VERSION = '0.11'
 
 local mt = { __index = _M }
 
 
-function new(self, opts)
+function _M.new(self, opts)
     local sock, err = tcp()
     if not sock then
         return nil, err
@@ -50,7 +50,7 @@ function new(self, opts)
 end
 
 
-function set_timeout(self, timeout)
+function _M.set_timeout(self, timeout)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -60,7 +60,7 @@ function set_timeout(self, timeout)
 end
 
 
-function connect(self, ...)
+function _M.connect(self, ...)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -84,12 +84,14 @@ local function _multi_get(self, keys)
 
     local escape_key = self.escape_key
     local cmd = {"get"}
+    local n = 1
 
     for i = 1, nkeys do
-        insert(cmd, " ")
-        insert(cmd, escape_key(keys[i]))
+        cmd[n + 1] = " "
+        cmd[n + 2] = escape_key(keys[i])
+        n = n + 2
     end
-    insert(cmd, "\r\n")
+    cmd[n + 1] = "\r\n"
 
     -- print("multi get cmd: ", cmd)
 
@@ -104,6 +106,9 @@ local function _multi_get(self, keys)
     while true do
         local line, err = sock:receive()
         if not line then
+            if err == "timeout" then
+                sock:close()
+            end
             return nil, err
         end
 
@@ -118,6 +123,9 @@ local function _multi_get(self, keys)
 
             local data, err = sock:receive(len)
             if not data then
+                if err == "timeout" then
+                    sock:close()
+                end
                 return nil, err
             end
 
@@ -125,6 +133,9 @@ local function _multi_get(self, keys)
 
             data, err = sock:receive(2) -- discard the trailing CRLF
             if not data then
+                if err == "timeout" then
+                    sock:close()
+                end
                 return nil, err
             end
         end
@@ -134,7 +145,7 @@ local function _multi_get(self, keys)
 end
 
 
-function get(self, key)
+function _M.get(self, key)
     if type(key) == "table" then
         return _multi_get(self, key)
     end
@@ -144,14 +155,16 @@ function get(self, key)
         return nil, nil, "not initialized"
     end
 
-    local cmd = {"get ", self.escape_key(key), "\r\n"}
-    local bytes, err = sock:send(concat(cmd))
+    local bytes, err = sock:send("get " .. self.escape_key(key) .. "\r\n")
     if not bytes then
         return nil, nil, "failed to send command: " .. (err or "")
     end
 
     local line, err = sock:receive()
     if not line then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, nil, "failed to receive 1st line: " .. (err or "")
     end
 
@@ -168,17 +181,18 @@ function get(self, key)
 
     local data, err = sock:receive(len)
     if not data then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, nil, "failed to receive data chunk: " .. (err or "")
     end
 
-    line, err = sock:receive(2) -- discard the trailing CRLF
+    line, err = sock:receive(7) -- discard the trailing "\r\nEND\r\n"
     if not line then
-        return nil, nil, "failed to receive CRLF: " .. (err or "")
-    end
-
-    line, err = sock:receive() -- discard "END\r\n"
-    if not line then
-        return nil, nil, "failed to receive END CRLF: " .. (err or "")
+        if err == "timeout" then
+            sock:close()
+        end
+        return nil, nil, "failed to receive value trailer: " .. (err or "")
     end
 
     return data, flags
@@ -199,12 +213,13 @@ local function _multi_gets(self, keys)
 
     local escape_key = self.escape_key
     local cmd = {"gets"}
-
+    local n = 1
     for i = 1, nkeys do
-        insert(cmd, " ")
-        insert(cmd, escape_key(keys[i]))
+        cmd[n + 1] = " "
+        cmd[n + 2] = escape_key(keys[i])
+        n = n + 2
     end
-    insert(cmd, "\r\n")
+    cmd[n + 1] = "\r\n"
 
     -- print("multi get cmd: ", cmd)
 
@@ -219,6 +234,9 @@ local function _multi_gets(self, keys)
     while true do
         local line, err = sock:receive()
         if not line then
+            if err == "timeout" then
+                sock:close()
+            end
             return nil, err
         end
 
@@ -235,6 +253,9 @@ local function _multi_gets(self, keys)
 
             local data, err = sock:receive(len)
             if not data then
+                if err == "timeout" then
+                    sock:close()
+                end
                 return nil, err
             end
 
@@ -242,6 +263,9 @@ local function _multi_gets(self, keys)
 
             data, err = sock:receive(2) -- discard the trailing CRLF
             if not data then
+                if err == "timeout" then
+                    sock:close()
+                end
                 return nil, err
             end
         end
@@ -251,7 +275,7 @@ local function _multi_gets(self, keys)
 end
 
 
-function gets(self, key)
+function _M.gets(self, key)
     if type(key) == "table" then
         return _multi_gets(self, key)
     end
@@ -261,14 +285,16 @@ function gets(self, key)
         return nil, nil, nil, "not initialized"
     end
 
-    local cmd = {"gets ", self.escape_key(key), "\r\n"}
-    local bytes, err = sock:send(concat(cmd))
+    local bytes, err = sock:send("gets " .. self.escape_key(key) .. "\r\n")
     if not bytes then
         return nil, nil, err
     end
 
     local line, err = sock:receive()
     if not line then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, nil, nil, err
     end
 
@@ -285,16 +311,17 @@ function gets(self, key)
 
     local data, err = sock:receive(len)
     if not data then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, nil, nil, err
     end
 
-    line, err = sock:receive(2) -- discard the trailing CRLF
+    line, err = sock:receive(7) -- discard the trailing "\r\nEND\r\n"
     if not line then
-        return nil, nil, nil, err
-    end
-
-    line, err = sock:receive() -- discard "END\r\n"
-    if not line then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, nil, nil, err
     end
 
@@ -305,12 +332,14 @@ end
 local function _expand_table(value)
     local segs = {}
     local nelems = #value
+    local nsegs = 0
     for i = 1, nelems do
         local seg = value[i]
+        nsegs = nsegs + 1
         if type(seg) == "table" then
-            insert(segs, _expand_table(seg))
+            segs[nsegs] = _expand_table(seg)
         else
-            insert(segs, seg)
+            segs[nsegs] = seg
         end
     end
     return concat(segs)
@@ -335,16 +364,19 @@ local function _store(self, cmd, key, value, exptime, flags)
         value = _expand_table(value)
     end
 
-    local req = {cmd, " ", self.escape_key(key), " ", flags, " ", exptime, " ",
-                 strlen(value), "\r\n", value, "\r\n"}
-
-    local bytes, err = sock:send(concat(req))
+    local req = cmd .. " " .. self.escape_key(key) .. " " .. flags .. " "
+                .. exptime .. " " .. strlen(value) .. "\r\n" .. value
+                .. "\r\n"
+    local bytes, err = sock:send(req)
     if not bytes then
         return nil, err
     end
 
     local data, err = sock:receive()
     if not data then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, err
     end
 
@@ -356,32 +388,32 @@ local function _store(self, cmd, key, value, exptime, flags)
 end
 
 
-function set(self, ...)
+function _M.set(self, ...)
     return _store(self, "set", ...)
 end
 
 
-function add(self, ...)
+function _M.add(self, ...)
     return _store(self, "add", ...)
 end
 
 
-function replace(self, ...)
+function _M.replace(self, ...)
     return _store(self, "replace", ...)
 end
 
 
-function append(self, ...)
+function _M.append(self, ...)
     return _store(self, "append", ...)
 end
 
 
-function prepend(self, ...)
+function _M.prepend(self, ...)
     return _store(self, "prepend", ...)
 end
 
 
-function cas(self, key, value, cas_uniq, exptime, flags)
+function _M.cas(self, key, value, cas_uniq, exptime, flags)
     if not exptime then
         exptime = 0
     end
@@ -395,19 +427,23 @@ function cas(self, key, value, cas_uniq, exptime, flags)
         return nil, "not initialized"
     end
 
-    local req = {"cas ", self.escape_key(key), " ", flags, " ", exptime, " ",
-                 strlen(value), " ", cas_uniq, "\r\n", value, "\r\n"}
+    local req = "cas " .. self.escape_key(key) .. " " .. flags .. " "
+                .. exptime .. " " .. strlen(value) .. " " .. cas_uniq
+                .. "\r\n" .. value .. "\r\n"
 
     -- local cjson = require "cjson"
     -- print("request: ", cjson.encode(req))
 
-    local bytes, err = sock:send(concat(req))
+    local bytes, err = sock:send(req)
     if not bytes then
         return nil, err
     end
 
     local line, err = sock:receive()
     if not line then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, err
     end
 
@@ -421,7 +457,7 @@ function cas(self, key, value, cas_uniq, exptime, flags)
 end
 
 
-function delete(self, key)
+function _M.delete(self, key)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -429,15 +465,18 @@ function delete(self, key)
 
     key = self.escape_key(key)
 
-    local req = {"delete ", key, "\r\n"}
+    local req = "delete " .. key .. "\r\n"
 
-    local bytes, err = sock:send(concat(req))
+    local bytes, err = sock:send(req)
     if not bytes then
         return nil, err
     end
 
     local res, err = sock:receive()
     if not res then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, err
     end
 
@@ -449,7 +488,7 @@ function delete(self, key)
 end
 
 
-function set_keepalive(self, ...)
+function _M.set_keepalive(self, ...)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -459,7 +498,7 @@ function set_keepalive(self, ...)
 end
 
 
-function get_reused_times(self)
+function _M.get_reused_times(self)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -469,7 +508,7 @@ function get_reused_times(self)
 end
 
 
-function flush_all(self, time)
+function _M.flush_all(self, time)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -477,7 +516,7 @@ function flush_all(self, time)
 
     local req
     if time then
-        req = concat({"flush_all ", time, "\r\n"})
+        req = "flush_all " .. time .. "\r\n"
     else
         req = "flush_all\r\n"
     end
@@ -489,6 +528,9 @@ function flush_all(self, time)
 
     local res, err = sock:receive()
     if not res then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, err
     end
 
@@ -506,15 +548,18 @@ local function _incr_decr(self, cmd, key, value)
         return nil, "not initialized"
     end
 
-    local req = {cmd, " ", self.escape_key(key), " ", value, "\r\n"}
+    local req = cmd .. " " .. self.escape_key(key) .. " " .. value .. "\r\n"
 
-    local bytes, err = sock:send(concat(req))
+    local bytes, err = sock:send(req)
     if not bytes then
         return nil, err
     end
 
     local line, err = sock:receive()
     if not line then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, err
     end
 
@@ -526,17 +571,17 @@ local function _incr_decr(self, cmd, key, value)
 end
 
 
-function incr(self, key, value)
+function _M.incr(self, key, value)
     return _incr_decr(self, "incr", key, value)
 end
 
 
-function decr(self, key, value)
+function _M.decr(self, key, value)
     return _incr_decr(self, "decr", key, value)
 end
 
 
-function stats(self, args)
+function _M.stats(self, args)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -544,7 +589,7 @@ function stats(self, args)
 
     local req
     if args then
-        req = concat({"stats ", args, "\r\n"})
+        req = "stats " .. args .. "\r\n"
     else
         req = "stats\r\n"
     end
@@ -555,9 +600,13 @@ function stats(self, args)
     end
 
     local lines = {}
+    local n = 0
     while true do
         local line, err = sock:receive()
         if not line then
+            if err == "timeout" then
+                sock:close()
+            end
             return nil, err
         end
 
@@ -566,7 +615,8 @@ function stats(self, args)
         end
 
         if not match(line, "ERROR") then
-            insert(lines, line)
+            n = n + 1
+            lines[n] = line
         else
             return nil, line
         end
@@ -577,7 +627,7 @@ function stats(self, args)
 end
 
 
-function version(self)
+function _M.version(self)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -590,6 +640,9 @@ function version(self)
 
     local line, err = sock:receive()
     if not line then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, err
     end
 
@@ -602,7 +655,7 @@ function version(self)
 end
 
 
-function quit(self)
+function _M.quit(self)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -617,19 +670,22 @@ function quit(self)
 end
 
 
-function verbosity(self, level)
+function _M.verbosity(self, level)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
     end
 
-    local bytes, err = sock:send(concat({"verbosity ", level, "\r\n"}))
+    local bytes, err = sock:send("verbosity " .. level .. "\r\n")
     if not bytes then
         return nil, err
     end
 
     local line, err = sock:receive()
     if not line then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, err
     end
 
@@ -641,20 +697,23 @@ function verbosity(self, level)
 end
 
 
-function touch(self, key, exptime)
+function _M.touch(self, key, exptime)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
     end
 
-    local bytes, err = sock:send(concat{"touch ", self.escape_key(key), " ",
-                                        exptime, "\r\n"})
+    local bytes, err = sock:send("touch " .. self.escape_key(key) .. " "
+                                 .. exptime .. "\r\n")
     if not bytes then
         return nil, err
     end
 
     local line, err = sock:receive()
     if not line then
+        if err == "timeout" then
+            sock:close()
+        end
         return nil, err
     end
 
@@ -666,7 +725,7 @@ function touch(self, key, exptime)
 end
 
 
-function close(self)
+function _M.close(self)
     local sock = self.sock
     if not sock then
         return nil, "not initialized"
@@ -676,12 +735,4 @@ function close(self)
 end
 
 
-local class_mt = {
-    -- to prevent use of casual module global variables
-    __newindex = function (table, key, val)
-        error('attempt to write to undeclared variable "' .. key .. '"')
-    end
-}
-
-setmetatable(_M, class_mt)
-
+return _M
