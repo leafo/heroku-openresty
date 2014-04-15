@@ -115,4 +115,4 @@ upstream.
 
 ## Version
 
-* OpenResty 1.2.8.6 Stable `--with-luajit` `--with-http_postgres_module`
+* OpenResty 1.5.11.1 `--with-http_postgres_module`
