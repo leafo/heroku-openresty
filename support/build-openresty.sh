@@ -20,7 +20,7 @@ pcre_dir="$base_dir/$(ls -d pcre*/ | head -n 1)"
 echo "$(tput setaf 2)Building openresty...$(tput sgr0)"
 (
 	cd $(ls -d ngx_openresty*/ | head -n 1)
-	./configure --with-pcre=$pcre_dir --with-http_postgres_module
+	./configure --with-pcre=$pcre_dir --with-http_postgres_module --with-pcre-jit
 	make
 	mkdir /tmp/openresty
 	make DESTDIR=/tmp/openresty install
