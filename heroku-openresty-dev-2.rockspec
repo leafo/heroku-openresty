@@ -20,6 +20,7 @@ build = {
 	install_command = [[
 		LIB_DIR=`cd $(PREFIX)/../../../../; pwd`
 		BIN_DIR=`cd $LIB_DIR/../../bin; pwd`
+		STACK=${STACK:-cedar}
 		cp luajit/lib/libluajit-5.1.so.2.1.0 "$LIB_DIR"
 		(
 			cd "$LIB_DIR"
