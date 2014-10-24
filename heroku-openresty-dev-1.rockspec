@@ -19,17 +19,17 @@ build = {
 	type = "command",
 	install_command = [[
 		LIB_DIR=`cd $(PREFIX)/../../../../; pwd`
+		BIN_DIR=`cd $LIB_DIR/../../bin; pwd`
 		cp luajit/lib/libluajit-5.1.so.2.1.0 "$LIB_DIR"
 		(
 			cd "$LIB_DIR"
 			ln -s libluajit-5.1.so.2.1.0 libluajit-5.1.so.2
 			ln -s libluajit-5.1.so.2.1.0 libluajit-5.1.so
 		)
+		cp nginx/sbin/$STACK/nginx "$BIN_DIR"
 	]],
 	install = {
 		bin = {
-			"nginx/sbin/nginx",
-
 			"bin/compile_nginx_config.lua",
 			"bin/start_nginx.sh"
 		},
