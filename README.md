@@ -30,7 +30,7 @@ work.
 Create a new app with the [Lua buildpack](https://github.com/leafo/heroku-buildpack-lua).
 
 ```bash
-$ heroku create --buildpack http://github.com/leafo/heroku-buildpack-lua.git
+$ heroku create --buildpack http://github.com/leafo/heroku-buildpack-lua.git --stack cedar
 ```
 
 Add to your rockspec dependencies:
